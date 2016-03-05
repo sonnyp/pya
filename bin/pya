@@ -11,6 +11,7 @@ const Table = require('cli-table')
 const meow = require('meow')
 const chalk = require('chalk')
 
+const pkg = require('../package.json')
 const Device = require('../lib/Device')
 
 var configdir = process.env.XDG_CONFIG_HOME || path.join(require('os').homedir(), '.config')
@@ -32,6 +33,7 @@ const cli = meow(`
 
     Options
       -h, --help print this help
+      -v, --version print version
 
     Examples
       $ pya help # print this help
@@ -44,10 +46,15 @@ const cli = meow(`
       $ pya uptime <device> # get device uptime
       $ pya exec <device> exec # exec command on device
       $ pya pingport <device> <port> # ping TCP port on device
+      $ pya waitup <device> # wait for the device to be available
+      $ pya waitdown <device> # wait for device to be unavailable
+      $ pya show <device> # show listing for device
+      $ pya version # print pya version
 
 `, {
   alias: {
-    h: 'help'
+    h: 'help',
+    v: 'version'
   }
 })
 
@@ -224,6 +231,11 @@ const commands = {
   help: {
     handler (devs, cb) {
       cb(null, cli.help.toString())
+    }
+  },
+  version: {
+    handler (devs, cb) {
+      cb(null, pkg.version)
     }
   }
 }
