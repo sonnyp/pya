@@ -8,7 +8,16 @@ CLI application to manage and monitor devices
 
 ![screenshot of "pya list"](https://raw.githubusercontent.com/sonnyp/pya/master/screenshot.png)
 
-pya manage and monitor devices using common tools and protocols which means there is nothing to install and/or configure on the devices, in most cases a SSH access is enough.
+`pya` only uses common tools and protocols which means there is nothing to install and/or configure on the devices, in most cases a SSH access is enough.
+
+## Features
+
+* Wake-on-LAN
+* reboot/poweroff/suspend over SSH via systemctl
+* uptime
+* memory usage
+* interactive sudo over SSH
+* ...
 
 ## Install
 
