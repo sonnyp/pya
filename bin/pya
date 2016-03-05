@@ -172,7 +172,7 @@ const commands = {
     fn (device, cb) {
       device.wake(err => {
         if (err) return cb(err)
-        device.waitForUp(err => {
+        device.waitup(err => {
           cb(err)
         })
       })
