@@ -4,6 +4,7 @@
   "description": "CLI application to manage and monitor devices",
   "main": "index.js",
   "scripts": {
+    "preversion": "npm test",
     "lint": "standard",
     "test": "npm run lint"
   },
