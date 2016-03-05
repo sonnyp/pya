@@ -1,6 +1,6 @@
 {
   "name": "pya",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "CLI application to manage and monitor devices",
   "main": "index.js",
   "scripts": {
