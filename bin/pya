@@ -1,0 +1,255 @@
+#!/usr/bin/env node
+
+'use strict'
+
+const fs = require('fs')
+const path = require('path')
+
+const async = require('async')
+const yaml = require('js-yaml')
+const Table = require('cli-table')
+const meow = require('meow')
+const chalk = require('chalk')
+
+const Device = require('../lib/Device')
+
+var configdir = process.env.XDG_CONFIG_HOME || path.join(require('os').homedir(), '.config')
+var configpath = path.join(configdir, 'pya.yaml')
+var config = yaml.load(fs.readFileSync(configpath), 'utf8')
+
+var devices = []
+
+for (var name in config.devices) {
+  const conf = config.devices[name]
+  if (!conf.timeout) conf.timeout = config.timeout
+  if (!conf.interval) conf.interval = config.interval
+  devices.push(new Device(name, conf))
+}
+
+const cli = meow(`
+    Usage
+      $ pya <action> <device>
+
+    Options
+      -h, --help print this help
+
+    Examples
+      $ pya help # print this help
+      $ pya list # list devices
+      $ pya sleep <device> # put device to sleep
+      $ pya wake <device> # wake device up
+      $ pya ping <device> # ping device
+      $ pya poweroff <device> # shutdown the device
+      $ pya reboot <device> # reboot the device
+      $ pya uptime <device> # get device uptime
+      $ pya exec <device> exec # exec command on device
+      $ pya pingport <device> <port> # ping TCP port on device
+
+`, {
+  alias: {
+    h: 'help'
+  }
+})
+
+// function readConfig (fn) {
+//   fs.readFile(configpath, 'utf8', (err, data) => {
+//     if (err) return fn(err)
+//     try {
+//       fn(null, yaml.load(data, 'utf8'))
+//     } catch (e) {
+//       fn(e)
+//     }
+//   })
+// }
+//
+// function getDevices (fn) {
+//   readConfig((err, config) => {
+//     if (err) return fn(err)
+//     fn(null, config.devices)
+//   })
+// }
+
+// function getDevice (name, fn) {
+//   getDevices((err, devices) => {
+//     if (err) return fn(err)
+//     fn(null, devices[name] || new Device(name))
+//   })
+// }
+
+function getDevice (name) {
+  return devices.find(device => device.name === name) || new Device(name)
+}
+
+function getDevices (devs) {
+  return devs && devs.length > 0 ? devs.split(',').map(getDevice) : devices
+}
+
+function error (err) {
+  if (!err) return
+  console.error(typeof err === 'string' ? err : err.message)
+  process.exit(1)
+}
+
+function ok (string) {
+  if (string) console.log(string)
+  process.exit(0)
+}
+
+function done (err, string) {
+  error(err)
+  ok(string)
+}
+
+function getTable (devs, fn) {
+  var table = new Table({
+    head: [chalk.white.bold('name'), chalk.white.bold('description'), chalk.white.bold('status'), chalk.white.bold('uptime'), chalk.white.bold('memory')],
+    colAligns: [null, null, 'middle']
+  })
+  async.each(devs, (device, cb) => {
+    const row = {}
+    const name = chalk.white(device.name)
+    const cols = row[device.isLocal() ? chalk.underline(name) : name] = [device.description]
+    table.push(row)
+    device.ping(err => {
+      cols.push(err ? chalk.red('✖') : chalk.green('✔'))
+      device.uptime((err, uptime) => {
+        cols.push(err ? '?' : uptime)
+        device.meminfo((err, meminfo) => {
+          cols.push(err ? '?' : Math.round((meminfo.MemTotal - meminfo.MemAvailable) * 100 / meminfo.MemTotal) + '%')
+          cb()
+        })
+        // cb()
+      })
+    })
+  }, () => {
+    done(null, table.toString())
+  })
+}
+
+// function parallel (devs, method, args, fn) {
+//   async.each(devs, (dev, cb) => {
+//     dev[method](args, )
+//   })
+// }
+//
+// function serie (devs, method) {
+//
+// }
+
+const commands = {
+  ping: {
+    fn (device, cb) {
+      device.ping(err => {
+        cb(err, 'pong')
+      })
+    }
+  },
+  waitup: {
+    fn (device, cb) {
+      device.waitup(cb)
+    }
+  },
+  waitdown: {
+    fn (device, cb) {
+      device.waitdown(cb)
+    }
+  },
+  pingport: {
+    fn (device, cb, args) {
+      device.pingTCPPort(args[0], err => {
+        cb(err, 'pong')
+      })
+    }
+  },
+  wake: {
+    fn (device, cb) {
+      device.wake(err => {
+        if (err) return cb(err)
+        device.waitForUp(err => {
+          cb(err)
+        })
+      })
+    }
+  },
+  poweroff: {
+    fn (device, cb) {
+      device.poweroff(err => {
+        if (err) return cb(err)
+        device.waitdown(cb)
+      })
+    }
+  },
+  reboot: {
+    fn (device, cb) {
+      device.reboot(err => {
+        if (err) return cb(err)
+        device.waitup(cb)
+      })
+    }
+  },
+  sleep: {
+    fn (device, cb) {
+      device.sleep(err => {
+        if (err) return cb(err)
+        device.waitdown(cb)
+      })
+    }
+  },
+  uptime: {
+    fn (device, cb) {
+      device.uptime(cb)
+    }
+  },
+  exec: {
+    fn (device, cb) {
+      device.interactive(cli.input[2], cb)
+    }
+  },
+  show: {
+    fn (device, cb) {
+      getTable([device], (err, table) => {
+        if (err) return cb(err)
+        cb(null, table.toString())
+      })
+    }
+  },
+  list: {
+    handler (devs, cb) {
+      getTable(devs, (err, table) => {
+        if (err) return cb(err)
+        cb(null, table.toString())
+      })
+    }
+  },
+  help: {
+    handler (devs, cb) {
+      cb(null, cli.help.toString())
+    }
+  }
+}
+
+const command = cli.input[0]
+const cmd = commands[command] || commands['help']
+const devs = getDevices(cli.input[1])
+const args = cli.input.slice(2)
+
+if (cmd.handler) {
+  cmd.handler(devs, done)
+} else if (devs.length === 1) {
+  cmd.fn(devs[0], done, args)
+} else {
+  let exitCode = 0
+  async.each(devs, (dev, cb) => {
+    cmd.fn(dev, (err, res) => {
+      if (err) {
+        console.error(chalk.red(dev.name) + ': ' + err.message)
+        exitCode = 1
+      } else if (res) {
+        console.log(chalk.green(dev.name) + ': ' + res)
+      }
+      cb()
+    }, args)
+  }, () => {
+    process.exit(exitCode)
+  })
+}
