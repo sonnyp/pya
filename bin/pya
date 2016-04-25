@@ -58,33 +58,8 @@ const cli = meow(`
   }
 })
 
-// function readConfig (fn) {
-//   fs.readFile(configpath, 'utf8', (err, data) => {
-//     if (err) return fn(err)
-//     try {
-//       fn(null, yaml.load(data, 'utf8'))
-//     } catch (e) {
-//       fn(e)
-//     }
-//   })
-// }
-//
-// function getDevices (fn) {
-//   readConfig((err, config) => {
-//     if (err) return fn(err)
-//     fn(null, config.devices)
-//   })
-// }
-
-// function getDevice (name, fn) {
-//   getDevices((err, devices) => {
-//     if (err) return fn(err)
-//     fn(null, devices[name] || new Device(name))
-//   })
-// }
-
 function getDevice (name) {
-  return devices.find(device => device.name === name) || new Device(name)
+  return devices.find((device) => device.name === name) || new Device(name)
 }
 
 function getDevices (devs) {
@@ -109,7 +84,7 @@ function done (err, string) {
 
 function getTable (devs, fn) {
   var table = new Table({
-    head: [chalk.white.bold('name'), chalk.white.bold('description'), chalk.white.bold('status'), chalk.white.bold('uptime'), chalk.white.bold('memory')],
+    head: [chalk.white.bold('name'), chalk.white.bold('description'), chalk.white.bold('status')],
     colAligns: [null, null, 'middle']
   })
   async.each(devs, (device, cb) => {
@@ -117,16 +92,9 @@ function getTable (devs, fn) {
     const name = chalk.white(device.name)
     const cols = row[device.isLocal() ? chalk.underline(name) : name] = [device.description]
     table.push(row)
-    device.ping(err => {
+    device.ping((err) => {
       cols.push(err ? chalk.red('✖') : chalk.green('✔'))
-      device.uptime((err, uptime) => {
-        cols.push(err ? '?' : uptime)
-        device.meminfo((err, meminfo) => {
-          cols.push(err ? '?' : Math.round((meminfo.MemTotal - meminfo.MemAvailable) * 100 / meminfo.MemTotal) + '%')
-          cb()
-        })
-        // cb()
-      })
+      cb()
     })
   }, () => {
     done(null, table.toString())
@@ -146,7 +114,7 @@ function getTable (devs, fn) {
 const commands = {
   ping: {
     fn (device, cb) {
-      device.ping(err => {
+      device.ping((err) => {
         cb(err, 'pong')
       })
     }
@@ -163,16 +131,17 @@ const commands = {
   },
   pingport: {
     fn (device, cb, args) {
-      device.pingTCPPort(args[0], err => {
+      const port = args[0]
+      device.pingTCPPort(port, (err) => {
         cb(err, 'pong')
       })
     }
   },
   wake: {
     fn (device, cb) {
-      device.wake(err => {
+      device.wake((err) => {
         if (err) return cb(err)
-        device.waitup(err => {
+        device.waitup((err) => {
           cb(err)
         })
       })
@@ -180,7 +149,7 @@ const commands = {
   },
   poweroff: {
     fn (device, cb) {
-      device.poweroff(err => {
+      device.poweroff((err) => {
         if (err) return cb(err)
         device.waitdown(cb)
       })
@@ -188,7 +157,7 @@ const commands = {
   },
   reboot: {
     fn (device, cb) {
-      device.reboot(err => {
+      device.reboot((err) => {
         if (err) return cb(err)
         device.waitup(cb)
       })
@@ -196,7 +165,7 @@ const commands = {
   },
   sleep: {
     fn (device, cb) {
-      device.sleep(err => {
+      device.sleep((err) => {
         if (err) return cb(err)
         device.waitdown(cb)
       })
@@ -241,7 +210,7 @@ const commands = {
 }
 
 const command = cli.input[0]
-const cmd = commands[command] || commands['help']
+const cmd = commands[command] || commands['list']
 const devs = getDevices(cli.input[1])
 const args = cli.input.slice(2)
 
